@@ -1,9 +1,9 @@
 name = "vku-field-survey"
-pages_build_output_dir = "dist"
+compatibility_date = "2026-09-08"
 
-# Cấu hình liên kết tự động với Cloudflare D1 Database
-# Nếu bạn muốn tự động liên kết D1 bằng file này mà không cần bấm trên giao diện web:
-# Hãy thay thế database_id bên dưới bằng ID lấy từ trang D1 của bạn:
+[assets]
+directory = "./dist"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "vku-survey-db-v2"
