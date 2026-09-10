@@ -3,8 +3,10 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// Local Dev Server API Middleware for real HTTP network requests
+// Local Dev Server API Middleware for real HTTP network requests & storage
 function mockApiPlugin() {
+  const storedSurveys: any[] = [];
+
   return {
     name: 'vku-mock-api',
     configureServer(server: any) {
@@ -15,14 +17,31 @@ function mockApiPlugin() {
           req.on('end', () => {
             let parsed: any = {};
             try { parsed = JSON.parse(body); } catch {}
+            if (parsed && parsed.uuid) {
+              const existingIndex = storedSurveys.findIndex((s) => s.uuid === parsed.uuid);
+              const record = {
+                uuid: parsed.uuid,
+                createdAt: parsed.createdAt || new Date().toISOString(),
+                syncedAt: new Date().toISOString(),
+                status: 'SYNCED',
+                retryCount: 0,
+                data: parsed.data
+              };
+              if (existingIndex >= 0) {
+                storedSurveys[existingIndex] = record;
+              } else {
+                storedSurveys.unshift(record);
+              }
+            }
+
             res.setHeader('Content-Type', 'application/json');
             res.statusCode = 200;
             res.end(JSON.stringify({
               status: 'SUCCESS',
-              message: 'Phiếu khảo sát đã được đồng bộ thành công lên máy chủ!',
+              message: 'Phiếu khảo sát đã được lưu vào Cơ sở dữ liệu Cloud!',
               receivedUuid: parsed?.uuid,
               serverTimestamp: new Date().toISOString(),
-              node: 'Vite Local Server'
+              node: 'Vite Local Cloud Simulator'
             }));
           });
         } else if (req.method === 'GET') {
@@ -30,7 +49,9 @@ function mockApiPlugin() {
           res.statusCode = 200;
           res.end(JSON.stringify({
             status: 'ONLINE',
-            service: 'VKU Field Survey Backend API (Local)',
+            service: 'VKU Field Survey Backend API',
+            count: storedSurveys.length,
+            surveys: storedSurveys,
             timestamp: new Date().toISOString()
           }));
         } else {

@@ -7,16 +7,23 @@ import {
   Download,
   Trash2,
   Image as ImageIcon,
-  Star
+  Star,
+  Cloud,
+  CloudDownload,
+  RefreshCw
 } from 'lucide-react';
 import type { SyncQueueItem } from '../types/survey';
 import { getSyncedHistory, deleteHistoryItem } from '../db/indexedDB';
+import { syncService } from '../services/syncService';
+import { networkService } from '../services/networkService';
 
 export const SurveyHistory: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<SyncQueueItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isPullingCloud, setIsPullingCloud] = useState<boolean>(false);
+  const [cloudSyncMsg, setCloudSyncMsg] = useState<string | null>(null);
 
   const loadHistory = async () => {
     try {
@@ -28,8 +35,30 @@ export const SurveyHistory: React.FC = () => {
     }
   };
 
+  const handlePullFromCloud = async () => {
+    setIsPullingCloud(true);
+    setCloudSyncMsg(null);
+    try {
+      const res = await syncService.fetchSurveysFromCloud();
+      if (res.success) {
+        await loadHistory();
+        setCloudSyncMsg(`Đã đồng bộ ${res.count} phiếu từ Cơ sở dữ liệu Cloud!`);
+      } else {
+        setCloudSyncMsg(res.error || 'Không thể kết nối lấy dữ liệu từ Cloud');
+      }
+    } catch (err: any) {
+      setCloudSyncMsg('Lỗi đồng bộ: ' + err.message);
+    } finally {
+      setIsPullingCloud(false);
+      setTimeout(() => setCloudSyncMsg(null), 4000);
+    }
+  };
+
   useEffect(() => {
     loadHistory();
+    if (networkService.isOnline) {
+      syncService.fetchSurveysFromCloud().then(() => loadHistory()).catch(() => {});
+    }
   }, []);
 
   const handleDelete = async (uuid: string) => {
@@ -77,19 +106,41 @@ export const SurveyHistory: React.FC = () => {
             />
           </div>
 
-          {/* Export Button */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Actions: Pull from Cloud & Export */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handlePullFromCloud}
+              disabled={isPullingCloud}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold active:scale-95 transition-all disabled:opacity-50"
+              title="Đồng bộ kéo toàn bộ dữ liệu khảo sát từ Cơ sở dữ liệu Cloud về"
+            >
+              {isPullingCloud ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-600" />
+              ) : (
+                <CloudDownload className="w-3.5 h-3.5 text-sky-600" />
+              )}
+              <span>{isPullingCloud ? 'Đang tải...' : 'Tải từ Cloud'}</span>
+            </button>
+
             <button
               onClick={handleExportJSON}
               disabled={historyItems.length === 0}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-semibold transition-all disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-semibold transition-all disabled:opacity-50"
               title="Xuất dữ liệu khảo sát ra file JSON"
             >
               <Download className="w-3.5 h-3.5 text-slate-600" />
-              <span>Xuất dữ liệu JSON</span>
+              <span>Xuất JSON</span>
             </button>
           </div>
         </div>
+
+        {/* Cloud sync feedback banner */}
+        {cloudSyncMsg && (
+          <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800 flex items-center gap-2 animate-fadeIn">
+            <Cloud className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>{cloudSyncMsg}</span>
+          </div>
+        )}
 
         {/* Category Filters */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">

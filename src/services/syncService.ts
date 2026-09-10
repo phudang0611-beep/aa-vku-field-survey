@@ -75,6 +75,41 @@ class SyncService {
     }
   }
 
+  /**
+   * Pulls all surveys saved in Cloud Database and merges into local IndexedDB
+   */
+  public async fetchSurveysFromCloud(): Promise<{ success: boolean; count: number; error?: string }> {
+    if (!networkService.isOnline) {
+      return { success: false, count: 0, error: 'Thiết bị đang ngoại tuyến' };
+    }
+
+    try {
+      const endpoint = this.getApiEndpoint();
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!res.ok) {
+        throw new Error(`Máy chủ trả về HTTP ${res.status}`);
+      }
+
+      const body = await res.json();
+      const cloudSurveys: SyncQueueItem[] = body?.surveys || [];
+
+      for (const item of cloudSurveys) {
+        if (item && item.uuid) {
+          await markItemAsSynced(item);
+        }
+      }
+
+      return { success: true, count: cloudSurveys.length };
+    } catch (err: any) {
+      console.error('[SyncService] Fetch from Cloud failed:', err);
+      return { success: false, count: 0, error: err.message };
+    }
+  }
+
   public subscribe(listener: SyncListener): () => void {
     this.listeners.add(listener);
     listener(this.getProgressState(0, 0));
