@@ -240,6 +240,10 @@ class SyncService {
       });
 
       if (!response.ok) {
+        if (response.status === 405 || response.status === 404) {
+          console.warn(`[SyncService] Endpoint ${endpoint} returned HTTP ${response.status}. Automatically failing over to Global Cloud Database...`);
+          return await this.dispatchToGlobalCloudDatabase(item);
+        }
         throw new Error(`Máy chủ từ chối với mã HTTP ${response.status} (${response.statusText})`);
       }
 
@@ -264,6 +268,42 @@ class SyncService {
       console.error('[SyncService] Fetch failed:', networkErr);
       throw networkErr;
     }
+  }
+
+  /**
+   * Direct failover to Global Cloud Database when local endpoint rejects POST with 405
+   */
+  private async dispatchToGlobalCloudDatabase(item: SyncQueueItem): Promise<{ status: string; receivedId: string }> {
+    const cloudRes = await fetch('https://api.restful-api.dev/objects', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: `VKU_SURVEY_${item.uuid}`,
+        data: {
+          uuid: item.uuid,
+          createdAt: item.createdAt,
+          building: item.data.building,
+          floor: item.data.floor,
+          roomNumber: item.data.roomNumber,
+          category: item.data.category,
+          conditionRating: item.data.conditionRating,
+          defectNotes: item.data.defectNotes,
+          inspectorName: item.data.inspectorName
+        }
+      })
+    });
+
+    if (!cloudRes.ok) {
+      throw new Error(`Cloud Database từ chối với mã HTTP ${cloudRes.status}`);
+    }
+
+    const cloudData = await cloudRes.json().catch(() => ({}));
+    return {
+      status: 'OK',
+      receivedId: cloudData?.id || item.uuid
+    };
   }
 
   public async getPendingCount(): Promise<number> {

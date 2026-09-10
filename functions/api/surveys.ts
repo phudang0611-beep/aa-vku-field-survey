@@ -242,3 +242,21 @@ export const onRequestGet = async (context: { env: Env }) => {
     }
   );
 };
+
+// Universal dispatcher matching any Cloudflare Pages routing mode
+export const onRequest = async (context: any) => {
+  const method = context.request.method;
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      }
+    });
+  }
+  if (method === 'POST') {
+    return onRequestPost(context);
+  }
+  return onRequestGet(context);
+};
