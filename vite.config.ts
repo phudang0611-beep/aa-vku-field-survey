@@ -3,11 +3,50 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Local Dev Server API Middleware for real HTTP network requests
+function mockApiPlugin() {
+  return {
+    name: 'vku-mock-api',
+    configureServer(server: any) {
+      server.middlewares.use('/api/surveys', (req: any, res: any, next: any) => {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            let parsed: any = {};
+            try { parsed = JSON.parse(body); } catch {}
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              status: 'SUCCESS',
+              message: 'Phiếu khảo sát đã được đồng bộ thành công lên máy chủ!',
+              receivedUuid: parsed?.uuid,
+              serverTimestamp: new Date().toISOString(),
+              node: 'Vite Local Server'
+            }));
+          });
+        } else if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 200;
+          res.end(JSON.stringify({
+            status: 'ONLINE',
+            service: 'VKU Field Survey Backend API (Local)',
+            timestamp: new Date().toISOString()
+          }));
+        } else {
+          next();
+        }
+      });
+    }
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    mockApiPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',

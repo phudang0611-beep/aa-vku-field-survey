@@ -48,6 +48,33 @@ class SyncService {
     }
   }
 
+  public getApiEndpoint(): string {
+    return localStorage.getItem('vku_api_endpoint') || '/api/surveys';
+  }
+
+  public setApiEndpoint(endpoint: string): void {
+    localStorage.setItem('vku_api_endpoint', endpoint);
+  }
+
+  public async pingServer(): Promise<{ ok: boolean; statusText: string; latencyMs: number }> {
+    const start = performance.now();
+    try {
+      const endpoint = this.getApiEndpoint();
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      const latencyMs = Math.round(performance.now() - start);
+      if (res.ok) {
+        return { ok: true, statusText: `HTTP ${res.status} OK`, latencyMs };
+      }
+      return { ok: false, statusText: `HTTP ${res.status} ${res.statusText}`, latencyMs };
+    } catch (err: any) {
+      const latencyMs = Math.round(performance.now() - start);
+      return { ok: false, statusText: err.message || 'Không thể kết nối máy chủ', latencyMs };
+    }
+  }
+
   public subscribe(listener: SyncListener): () => void {
     this.listeners.add(listener);
     listener(this.getProgressState(0, 0));
@@ -125,7 +152,7 @@ class SyncService {
         await updateQueueItem(item);
         this.notify(total, i, item);
 
-        // Send to remote API / mock endpoint
+        // Send real HTTP POST request to server
         await this.dispatchToServer(item);
 
         // Mark as SYNCED & archive to history
@@ -137,7 +164,7 @@ class SyncService {
         failedCount++;
         item.status = 'FAILED';
         item.retryCount = (item.retryCount || 0) + 1;
-        item.lastError = error?.message || 'Lỗi truyền tải dữ liệu';
+        item.lastError = error?.message || 'Lỗi truyền tải mạng';
         await updateQueueItem(item);
       }
 
@@ -150,34 +177,58 @@ class SyncService {
   }
 
   /**
-   * Simulated API server dispatch with realistic network latency
+   * Dispatches survey item via real HTTP POST request across the network
    */
   private async dispatchToServer(item: SyncQueueItem): Promise<{ status: string; receivedId: string }> {
-    // In production, this would be: await fetch('/api/surveys', { method: 'POST', body: ... })
-    // We simulate realistic network roundtrip
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // If simulated offline was activated during transmission
     if (!networkService.isOnline) {
-      throw new Error('Mất kết nối trong quá trình gửi dữ liệu.');
+      throw new Error('Mất kết nối Internet trong quá trình gửi dữ liệu.');
     }
 
-    // Save copy to local server storage simulation
+    const endpoint = this.getApiEndpoint();
+
     try {
-      const serverRecords = JSON.parse(localStorage.getItem('vku_remote_server_surveys') || '[]');
-      serverRecords.unshift({
-        ...item,
-        serverReceivedAt: new Date().toISOString()
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          uuid: item.uuid,
+          createdAt: item.createdAt,
+          data: item.data,
+          clientMetadata: {
+            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
+            clientTimestamp: new Date().toISOString()
+          }
+        })
       });
-      localStorage.setItem('vku_remote_server_surveys', JSON.stringify(serverRecords));
-    } catch {
-      // ignore storage quota in mock
-    }
 
-    return {
-      status: 'OK',
-      receivedId: item.uuid
-    };
+      if (!response.ok) {
+        throw new Error(`Máy chủ từ chối với mã HTTP ${response.status} (${response.statusText})`);
+      }
+
+      const result = await response.json().catch(() => ({ status: 'OK' }));
+
+      // Archive a copy to local server storage
+      try {
+        const serverRecords = JSON.parse(localStorage.getItem('vku_remote_server_surveys') || '[]');
+        serverRecords.unshift({
+          ...item,
+          serverReceivedAt: new Date().toISOString()
+        });
+        localStorage.setItem('vku_remote_server_surveys', JSON.stringify(serverRecords.slice(0, 50)));
+      } catch {}
+
+      return {
+        status: 'OK',
+        receivedId: result?.receivedUuid || item.uuid
+      };
+    } catch (networkErr: any) {
+      // If endpoint failed (e.g. offline or unreachable endpoint)
+      console.error('[SyncService] Fetch failed:', networkErr);
+      throw networkErr;
+    }
   }
 
   public async getPendingCount(): Promise<number> {
