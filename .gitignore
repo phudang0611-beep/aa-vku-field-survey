@@ -23,10 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Android build outputs
-.gradle/
-build/
-android/.gradle/
-android/build/
-android/app/build/
+# Android directory (Capacitor native folder)
+android/
 *.apk
