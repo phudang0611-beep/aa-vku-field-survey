@@ -191,13 +191,80 @@ npx vercel
 ```
 2. Cấu hình đã được tạo sẵn trong file `vercel.json` (tự động cấu hình headers cho Service Worker và Manifest).
 
-### Triển khai lên Cloudflare Pages
+### Triển khai lên Cloudflare Pages (với D1 Database)
 1. Đăng nhập [Cloudflare Dashboard](https://dash.cloudflare.com/) > **Workers & Pages** > **Create application** > **Pages** > **Connect to Git**.
 2. Cấu hình Build:
    - Framework preset: `Vite`
    - Build command: `npm run build`
    - Build output directory: `dist`
 3. Nhấn **Save and Deploy**.
+
+---
+
+## ☁️ Hướng dẫn Kết nối Cloudflare D1 Database (Online Sync)
+
+Ứng dụng sử dụng **Cloudflare D1** (SQLite-compatible, serverless) làm database cloud. API được xử lý bởi **Cloudflare Pages Functions** đặt tại `functions/api/surveys.ts`.
+
+### Bước 1 — Cài Wrangler CLI
+
+```bash
+npm install -g wrangler
+wrangler login
+```
+
+### Bước 2 — Tạo D1 Database
+
+```bash
+# Tạo database (nếu chưa có)
+wrangler d1 create vku-survey-db-v2
+
+# Lệnh trên trả về database_id. Dán vào wrangler.toml:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "vku-survey-db-v2"
+# database_id = "<DATABASE_ID_CỦA_BẠN>"
+```
+
+### Bước 3 — Khởi tạo Schema
+
+```bash
+# Chạy schema SQL lên D1 (production)
+wrangler d1 execute vku-survey-db-v2 --file=./worker/schema.sql
+
+# Chạy thử cục bộ (local)
+wrangler d1 execute vku-survey-db-v2 --local --file=./worker/schema.sql
+```
+
+### Bước 4 — Deploy lên Cloudflare Pages
+
+```bash
+# Build ứng dụng
+npm run build
+
+# Deploy (lần đầu cần login Cloudflare)
+wrangler pages deploy dist --project-name=vku-field-survey
+```
+
+### Bước 5 — Kiểm tra D1 hoạt động
+
+Sau khi deploy, mở trình duyệt vào `https://<your-pages-url>/api/surveys` — nếu thấy JSON response là thành công!
+
+Để xem dữ liệu trong D1:
+```bash
+wrangler d1 execute vku-survey-db-v2 --command="SELECT * FROM vku_surveys ORDER BY created_at DESC LIMIT 10"
+```
+
+### Kiến trúc đồng bộ D1
+
+```
+[PWA offline] → IndexedDB (PENDING_SYNC)
+    ↓ khi có mạng (window.ononline / Background Sync)
+[syncService] → HTTP POST /api/surveys
+    ↓
+[Cloudflare Pages Function] → functions/api/surveys.ts
+    ↓ env.DB.prepare().bind().run()
+[Cloudflare D1 Database] → vku_surveys table
+```
 
 ---
 

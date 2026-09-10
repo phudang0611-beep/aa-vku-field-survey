@@ -1,10 +1,26 @@
+# =============================================================
+# VKU Field Survey — Cloudflare Configuration
+# =============================================================
 name = "vku-field-survey"
-compatibility_date = "2026-09-08"
+compatibility_date = "2024-09-23"
 
-[assets]
-directory = "./dist"
+# Cloudflare Pages build output
+pages_build_output_dir = "./dist"
 
+# =============================================================
+# Cloudflare D1 Database binding
+# Run to create:  wrangler d1 create vku-survey-db-v2
+# Run schema:     wrangler d1 execute vku-survey-db-v2 --file=./worker/schema.sql
+# =============================================================
 [[d1_databases]]
 binding = "DB"
 database_name = "vku-survey-db-v2"
-database_id = "8615292d-9f25-4ffb-bbc2-166271594f8b"
+database_id = "89d156f3-37b0-4a1d-abe8-7b28ecbd1c84"
+
+# =============================================================
+# (Optional) Cloudflare KV for session/cache storage
+# Run to create:  wrangler kv namespace create SURVEY_KV
+# =============================================================
+# [[kv_namespaces]]
+# binding = "SURVEY_KV"
+# id = "<YOUR_KV_NAMESPACE_ID>"
