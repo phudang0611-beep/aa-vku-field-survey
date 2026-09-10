@@ -8,4 +8,4 @@ pages_build_output_dir = "dist"
 # [[d1_databases]]
 # binding = "DB"
 # database_name = "vku-survey-db"
-# database_id = "dien_database_id_cua_ban_vao_day"
+# database_id = "a6dec341-4dbd-4562-a9f3-4caa9ad09b59"
