@@ -4,8 +4,7 @@ pages_build_output_dir = "dist"
 # Cấu hình liên kết tự động với Cloudflare D1 Database
 # Nếu bạn muốn tự động liên kết D1 bằng file này mà không cần bấm trên giao diện web:
 # Hãy thay thế database_id bên dưới bằng ID lấy từ trang D1 của bạn:
-#
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "vku-survey-db-v2"
-# database_id = "8615292d-9f25-4ffb-bbc2-166271594f8b"
+[[d1_databases]]
+binding = "DB"
+database_name = "vku-survey-db-v2"
+database_id = "8615292d-9f25-4ffb-bbc2-166271594f8b"
