@@ -7,5 +7,5 @@ pages_build_output_dir = "dist"
 #
 # [[d1_databases]]
 # binding = "DB"
-# database_name = "vku-survey-db"
-# database_id = "a6dec341-4dbd-4562-a9f3-4caa9ad09b59"
+# database_name = "vku-survey-db-v2"
+# database_id = "8615292d-9f25-4ffb-bbc2-166271594f8b"
